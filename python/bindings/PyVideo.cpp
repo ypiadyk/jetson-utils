@@ -211,6 +211,8 @@ static PyObject* PyVideoSource_Capture( PyVideoSource_Object* self, PyObject* ar
 	if( pyTimeout >= 0 )
 		timeout = pyTimeout;
 
+	// bool isRaw = strcasecmp("raw", pyFormat) == 0
+
 	// convert format string to enum
 	const imageFormat format = imageFormatFromStr(pyFormat);
 	
@@ -223,8 +225,15 @@ static PyObject* PyVideoSource_Capture( PyVideoSource_Object* self, PyObject* ar
 		return NULL;
 	}
 
+	// Expect raw image if conversion format is unknown
+	if (format == IMAGE_UNKNOWN)
+	{
+		// register memory capsule (videoSource will free the underlying memory when source is deleted)
+		return PyCUDA_RegisterImage(ptr, self->source->GetWidth(), self->source->GetHeight(), self->source->GetRawFormat(), self->source->GetOptions().zeroCopy, false, self->source->GetLatestTimestamp());
+	}
+
 	// register memory capsule (videoSource will free the underlying memory when source is deleted)
-	return PyCUDA_RegisterImage(ptr, self->source->GetWidth(), self->source->GetHeight(), format, self->source->GetOptions().zeroCopy, false);
+	return PyCUDA_RegisterImage(ptr, self->source->GetWidth(), self->source->GetHeight(), format, self->source->GetOptions().zeroCopy, false, self->source->GetLatestTimestamp());
 }
 
 // PyVideoSource_GetWidth

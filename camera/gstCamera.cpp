@@ -32,6 +32,7 @@
 
 #include "cudaColorspace.h"
 #include "filesystem.h"
+#include "timespec.h"
 #include "logging.h"
 
 #include "NvInfer.h"
@@ -45,6 +46,9 @@ gstCamera::gstCamera( const videoOptions& options ) : videoSource(options)
 	mPipeline   = NULL;	
 	mFrameCount = 0;
 	mFormatYUV  = IMAGE_UNKNOWN;
+	mTimestamps = NULL;
+	mLastReadTimestamp = 0;
+	mLastWriteTimestamp = 0;
 	
 	mBufferRGB.SetThreaded(false);
 }
@@ -54,6 +58,14 @@ gstCamera::gstCamera( const videoOptions& options ) : videoSource(options)
 gstCamera::~gstCamera()
 {
 	Close();
+
+	if( mTimestamps != NULL )
+	{
+		free(mTimestamps);
+		mTimestamps = NULL;
+		mLastReadTimestamp = 0;
+		mLastWriteTimestamp = 0;
+	}
 
 	if( mAppSink != NULL )
 	{
@@ -566,6 +578,9 @@ void gstCamera::checkBuffer()
 	if( !mAppSink )
 		return;
 
+	// timestamp the buffer upon arrival
+	uint64_t timestamp = apptime_nano();
+
 	// block waiting for the buffer
 	GstSample* gstSample = gst_app_sink_pull_sample(mAppSink);
 	
@@ -667,6 +682,13 @@ void gstCamera::checkBuffer()
 		release_return;
 	}
 
+	if (!mTimestamps)
+	{
+		mTimestamps = (uint64_t*)malloc(mOptions.numBuffers * sizeof(uint64_t));
+		mLastReadTimestamp = 0;
+		mLastWriteTimestamp = 0;
+	}
+
 	// copy to next ringbuffer
 	void* nextBuffer = mBufferYUV.Peek(RingBuffer::Write);
 
@@ -678,6 +700,10 @@ void gstCamera::checkBuffer()
 
 	memcpy(nextBuffer, gstData, gstSize);
 	mBufferYUV.Next(RingBuffer::Write);
+
+	mTimestamps[mLastWriteTimestamp] = timestamp;
+	mLastWriteTimestamp = (mLastWriteTimestamp + 1) % mOptions.numBuffers;
+
 	mWaitEvent.Wake();
 	mFrameCount++;
 	
@@ -707,11 +733,23 @@ bool gstCamera::Capture( void** output, imageFormat format, uint64_t timeout )
 	if( !mWaitEvent.Wait(timeout) )
 		return false;
 	
-	// get the latest ringbuffer
+	// get the latest ringbuffer (and corresponding timestamp)
 	void* latestYUV = mBufferYUV.Next(RingBuffer::ReadLatestOnce);
+	mRawFormat = mFormatYUV;
+
+	mLatestTimestamp = mTimestamps[mLastReadTimestamp];
+	mLastReadTimestamp = (mLastReadTimestamp + 1) % mOptions.numBuffers;	
+	// LogInfo(LOG_GSTREAMER "latest timestamp: %lu\n", mLatestTimestamp);	
 
 	if( !latestYUV )
 		return false;
+
+	// Output raw image if convertion format is unknown
+	if (format = IMAGE_UNKNOWN)
+	{
+		*output = latestYUV;
+		return true;
+	}
 
 	// allocate ringbuffer for colorspace conversion
 	const size_t rgbBufferSize = imageFormatSize(format, GetWidth(), GetHeight());

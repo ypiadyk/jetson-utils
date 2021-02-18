@@ -23,7 +23,7 @@
 
 import jetson.utils
 import argparse
-
+import cv2
 
 # parse the command line
 parser = argparse.ArgumentParser()
@@ -32,7 +32,11 @@ parser.add_argument("--width", type=int, default=1280, help="desired width of ca
 parser.add_argument("--height", type=int, default=720, help="desired height of camera stream (default is 720 pixels)")
 parser.add_argument("--camera", type=str, default="0", help="index of the MIPI CSI camera to use (NULL for CSI camera 0), or for VL42 cameras the /dev/video node to use (e.g. /dev/video0).  By default, MIPI CSI camera 0 will be used.")
 
+width, height = 2592, 1458
+
 opt = parser.parse_args()
+opt.height = height
+opt.width = width
 print(opt)
 
 # create display window
@@ -45,10 +49,33 @@ camera = jetson.utils.gstCamera(opt.width, opt.height, opt.camera)
 camera.Open()
 
 # capture frames until user exits
+bgr_img = jetson.utils.cudaAllocMapped(width=width, height=height, format='bgr8')
+
+
 while display.IsOpen():
-	image, width, height = camera.CaptureRGBA()
-	display.RenderOnce(image, width, height)
-	display.SetTitle("{:s} | {:d}x{:d} | {:.1f} FPS".format("Camera Viewer", width, height, display.GetFPS()))
+	image, width, height = camera.CaptureRGBA(timeout=1000, zeroCopy=True)
+	print(image)
+
+	# image2 = jetson.utils.cudaAllocMapped(width=width, height=height, format='rgba32')
+
+	# jetson.utils.cudaConvertColor(image, image2)
+
+	# display.RenderOnce(image, width, height)
+	# display.SetTitle("{:s} | {:d}x{:d} | {:.1f} FPS".format("Camera Viewer", width, height, display.GetFPS()))
+
+
+	jetson.utils.cudaConvertColor(image, bgr_img)
+
+	img = jetson.utils.cudaToNumpy(bgr_img)
+	# img = jetson.utils.cudaToNumpy(image)
+	# img = image
+	# img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+	cv2.imshow('my webcam', img)
+	# cv2.imshow('my webcam', img[:, :, [2, 1, 0]]/ 255.)
+	if cv2.waitKey(1) == 27:
+		break  # esc to quit
+
+cv2.destroyAllWindows()
 	
 # close the camera
 camera.Close()

@@ -302,12 +302,17 @@ public:
 	 */
 	static const char* TypeToStr( uint32_t type );
 
+	inline uint64_t GetLatestTimestamp() const		{ return mLatestTimestamp; }
+	inline imageFormat GetRawFormat() const		{ return mRawFormat; }
+
 protected:
 	//videoSource();
 	videoSource( const videoOptions& options );
 
 	bool         mStreaming;
 	videoOptions mOptions;
+	uint64_t     mLatestTimestamp;
+	imageFormat  mRawFormat;
 };
 
 #endif

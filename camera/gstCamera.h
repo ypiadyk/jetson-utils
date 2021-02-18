@@ -199,7 +199,7 @@ public:
 	 * Default camera height, unless otherwise specified during Create()
  	 */
 	static const uint32_t DefaultHeight = 720;
-	
+
 private:
 	static void onEOS(_GstAppSink* sink, void* user_data);
 	static GstFlowReturn onPreroll(_GstAppSink* sink, void* user_data);
@@ -229,6 +229,9 @@ private:
 	
 	RingBuffer mBufferYUV;
 	RingBuffer mBufferRGB;
+	uint64_t*  mTimestamps;
+	uint32_t   mLastReadTimestamp;
+	uint32_t   mLastWriteTimestamp;
 
 	Event mWaitEvent;
 };

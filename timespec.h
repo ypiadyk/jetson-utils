@@ -137,6 +137,12 @@ inline void apptime( timespec* a )										{ timespec t; timestamp(&t); timeDif
 inline float apptime()												{ timespec t; apptime(&t); return t.tv_sec + t.tv_nsec * 0.000000001f; }
 
 /**
+ * Retrieve the elapsed time since the process started (in nanoseconds).
+ * @ingroup time
+ */
+inline uint64_t apptime_nano()												{ timespec t; apptime(&t); return (uint64_t)t.tv_sec * uint64_t(1000000000) + (uint64_t)t.tv_nsec; }
+
+/**
  * Convert to 32-bit float (in milliseconds).
  * @ingroup time
  */
